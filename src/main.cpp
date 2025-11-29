@@ -83,7 +83,7 @@ bool cancelOrder(const std::string& id){
     if (bookIt != sellBook.end()){
       bookIt->second.erase(location.it);
       if (bookIt->second.empty()){
-        buyBook.erase(bookIt);
+        sellBook.erase(bookIt);
       }
     }
 
