@@ -75,6 +75,7 @@ Descending price for buys
 Ascending price for sells
 
 Price levels store FIFO deques of orders.
+
 ---
 ## Building
 
