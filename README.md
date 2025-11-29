@@ -68,7 +68,13 @@ std::map<double, std::deque<Order>, std::greater<double>> buyBook;
 std::map<double, std::deque<Order>> sellBook;
 
 ```
+Books are sorted by:
 
+Descending price for buys
+
+Ascending price for sells
+
+Price levels store FIFO deques of orders.
 ---
 ## Building
 
