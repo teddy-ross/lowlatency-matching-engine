@@ -170,7 +170,7 @@ Simulation or ingestion of real market data feeds
 
 MIT License
 
-Copyright Edward Ross (c) 2025 
+Copyright (c) 2025 Edward Ross
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
