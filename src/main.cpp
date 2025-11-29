@@ -42,8 +42,59 @@ struct Trade{
     double timestamp; 
 };
 
+struct OrderLocation{
+
+  double price;
+  char side;
+  std::deque<Order>::iterator it;
+};
+
+
+
 std::map<double, std::deque<Order>, std::greater<double>> buyBook; // price -> orders (sorted by price desc)
 std::map<double, std::deque<Order>> sellBook; // price -> orders (sorted by price asc)
+std::unordered_map<std::string, OrderLocation> orderIndex; // need O(1) access to order's location inside of order book
+
+bool cancelOrder(const std::string& id){
+
+  auto it = orderIndex.find(id);
+  if (it == orderIndex.end()){
+    std::cout << "CANCEL REJECT " << id << '\n';
+    return false;
+  }
+
+  const OrderLocation& location = it->second;
+
+  if (location.side == 'B'){
+
+    auto bookIt = buyBook.find(location.price);
+    if (bookIt != buyBook.end()){
+      bookIt->second.erase(location.it);
+      if (bookIt->second.empty()){
+        buyBook.erase(bookIt);
+      }
+    }
+
+
+  }
+  else{
+
+    auto bookIt = sellBook.find(location.price);
+    if (bookIt != sellBook.end()){
+      bookIt->second.erase(location.it);
+      if (bookIt->second.empty()){
+        buyBook.erase(bookIt);
+      }
+    }
+
+  }
+
+  orderIndex.erase(it);
+
+  std::cout<< "CANCEL_ACK " << id << '\n';
+  return true;
+}
+
 
 void processOrder(Order order){
 
@@ -65,12 +116,30 @@ void processOrder(Order order){
 
                 if (sellOrder.quantity == 0) {
                     sellOrders.pop_front(); // Remove fully filled order
+                    orderIndex.erase(sellOrder.id);
                 }
             }
             if (sellOrders.empty()) {
                 sellBook.erase(sellBook.begin()); // Remove price level if no orders left
             }
         }
+
+    if(order.quantity > 0){
+
+      auto& dequeue = buyBook[order.price];
+      dequeue.push_back(order);
+
+      orderIndex[order.id] ={
+        order.price,
+        'B',
+        std::prev(dequeue.end()) //gives iterator to newly inserted order
+      };
+      
+     
+
+      std::cout << "ACK " << order.id << '\n';
+
+    }
 
     }
     else{ //sell side
@@ -91,6 +160,8 @@ void processOrder(Order order){
 
                 if (buyOrder.quantity == 0) {
                     buyOrders.pop_front(); // Remove fully filled order
+                    orderIndex.erase(buyOrder.id);
+          
                 }
             }
             if (buyOrders.empty()) {
@@ -98,7 +169,22 @@ void processOrder(Order order){
             }
         }
 
+    if (order.quantity > 0){
 
+      auto& dequeue = sellBook[order.price];
+      dequeue.push_back(order);
+
+      orderIndex[order.id] ={
+        order.price,
+        'S',
+        std::prev(dequeue.end()) //gives iterator to newly inserted order
+      };
+      
+
+      std::cout << "ACK " << order.id << '\n';
+
+
+    }
 
     }
 
