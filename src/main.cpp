@@ -194,11 +194,54 @@ void processOrder(Order order){
 }
 
 
-int main(){
+
+int main() {
+
+    std::string line;
+
+    
+    while (std::getline(std::cin, line)) {
+        std::stringstream ss(line);
+        std::string cmd;
+        ss >> cmd;
+
+        if (cmd == "SUBMIT") {
+            Order o;
+            ss >> o.id >> o.side >> o.price >> o.quantity;
+            o.timestamp = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+            ).count();
+
+            processOrder(o);
+        }
+        else if (cmd == "CANCEL") {
+            std::string id;
+            ss >> id;
+            cancelOrder(id);
+        }
+        else if (cmd == "PRINT") {
+            // DEBUG
+            std::cout << "BUY BOOK:\n";
+            for (auto& [price, dq] : buyBook) {
+                std::cout << price << ": ";
+                for (auto& o : dq) std::cout << o.id << "(" << o.quantity << ") ";
+                std::cout << "\n";
+            }
+
+            std::cout << "\nSELL BOOK:\n";
+            for (auto& [price, dq] : sellBook) {
+                std::cout << price << ": ";
+                for (auto& o : dq) std::cout << o.id << "(" << o.quantity << ") ";
+                std::cout << "\n";
+            }
+        }
+    }
+
+    return 0;
+}
+
 
     
 
-    return 0;
 
 
-}
