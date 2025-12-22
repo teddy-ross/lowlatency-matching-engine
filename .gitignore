@@ -1,0 +1,18 @@
+# CMake build directory
+build/
+build*/                      # catches build-debug, build-release, build-clang, etc.
+
+# CMake cache & generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Executables & binaries
+*.o
+*.a
+*.so
+*.exe
+*.out
+
+build/
