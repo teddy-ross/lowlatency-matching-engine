@@ -19,7 +19,10 @@ marketDataHandlerLL/
 │   ├── Protocol.cpp            # Command parsing (SUBMIT, CANCEL, DUMP)
 │   └── main.cpp                # TCP server + integration layer
 │
-└── generator.py                # Python load tester
+├── bench/
+│   └── generator.py            # Python load tester
+│
+└── README.md                   # Project documentation
 ```
 
 ---
