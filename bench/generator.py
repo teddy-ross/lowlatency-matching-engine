@@ -1,8 +1,10 @@
-# quick generator: connect to engine and send many SUBMIT orders, measure RTT for ACKs.
-import socket, time, sys
+# generator.py – spam SUBMITs to the engine and measure RTT
+import socket
+import time
+import sys
 import random
 
-HOST = '127.0.0.1'
+HOST = "127.0.0.1"
 PORT = 6666
 N = 200000
 
@@ -14,25 +16,42 @@ s.connect((HOST, PORT))
 s.settimeout(2.0)
 
 start = time.time()
-for i in range(1, N+1):
-    side = 'B' if (i % 2 == 0) else 'S'
-    price = 1000 + random.randint(0, 10)
-    qty = random.randint(1, 10)
-    line = f"SUBMIT {i} {side} {price} {qty}\n"
-    send_t = time.time()
-    s.sendall(line.encode())
-    # read responses until ACK or FILL lines consumed (non-robust but fine for starter)
-    try:
-        data = s.recv(4096)
-    except socket.timeout:
-        print("timeout waiting for response")
-        break
-    recv_t = time.time()
-    # crude RTT
-    rtt_us = (recv_t - send_t) * 1e6
-    if i % 10000 == 0:
-        print(f"sent {i}, rtt_us ~ {rtt_us:.1f}, elapsed {recv_t-start:.1f}s")
-end = time.time()
-print("done, total sec:", end-start)
-s.close()
+buf = b""
 
+for i in range(1, N + 1):
+    side = random.choice(["B", "S"])
+    price = random.randint(95, 105)
+    qty = random.randint(1, 10)
+    line = f"SUBMIT {i} {side} {price} {qty}\n".encode()
+
+    send_t = time.time()
+    s.sendall(line)
+
+    # Very simple: read until we see at least one newline in response
+    while b"\n" not in buf:
+        try:
+            chunk = s.recv(4096)
+        except socket.timeout:
+            print("timeout waiting for response")
+            s.close()
+            sys.exit(1)
+        if not chunk:
+            print("server closed connection")
+            s.close()
+            sys.exit(1)
+        buf += chunk
+
+    # take one line (you might get more than one in buf)
+    line_end = buf.find(b"\n")
+    resp = buf[:line_end].decode(errors="ignore")
+    buf = buf[line_end + 1 :]
+
+    recv_t = time.time()
+    rtt_us = (recv_t - send_t) * 1e6
+
+    if i % 10000 == 0:
+        print(f"sent {i}, last RTT ≈ {rtt_us:.1f} µs, elapsed {recv_t - start:.2f}s")
+
+end = time.time()
+print(f"done {N} orders in {end - start:.2f}s")
+s.close()

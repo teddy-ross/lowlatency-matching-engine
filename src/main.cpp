@@ -1,12 +1,18 @@
-// Simple single-threaded matching engine
-// Protocol (text lines, newline-terminated):
-// SUBMIT <id> <B|S> <price> <qty>
-// CANCEL <id>
+// Simple single-threaded matching engine with TCP interface.
+// Protocol (text lines, '\n'-terminated):
+//   SUBMIT <id> <B|S> <price> <qty>
+//   CANCEL <id>
 //
-// Responses (text lines):
-// ACK <id>
-// FILL <incoming_id> <matched_id> <price> <qty>
-// DONE
+// Responses (text, may be multiple lines per command):
+//   ACK <id>
+//   FILL <incoming_id> <resting_id> <price> <qty>
+//   ACK <id> NOT_FOUND    (for unknown CANCEL)
+//   ERR <reason>          (for parse errors)
+//
+// Example:
+//   SUBMIT 1 B 100 10
+//   SUBMIT 2 S 99 5
+//   CANCEL 1
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -33,215 +39,308 @@ struct Order {
     double timestamp; // for time priority
 };
 
-struct Trade{
 
-    std::string buyOrderId;
-    std::string sellOrderId;
-    double price;
-    int quantity;
-    double timestamp; 
+
+struct MatchingEngine {
+  public:
+  
+    std::map<double, std::deque<Order>, std::greater<double>> bids; // best (highest) first
+    std::map<double, std::deque<Order>> asks; // best (lowest) first
+  
+
+    void submit(Order& order, std::ostream& out){
+      if (order.side == 'B'){
+        matchBuy(order, out);
+      }
+      else{
+        matchSell(order, out);
+      }
+
+      out << "ACK " << order.id << '\n';
+    }
+
+    void cancel(const std::string& id, std::ostream& out){
+      auto eraseFrom = [&](auto& book)->bool{
+        for (auto it{book.begin()}; it != book.end(); ++it){
+
+          auto &dq = it->second;
+
+          for (auto qit {dq.begin()}; qit != dq.end(); ++qit){
+
+            if (qit->id == id){
+
+              dq.erase(qit);
+
+              if (dq.empty()){
+
+                book.erase(it);
+              }
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+
+      bool removed {eraseFrom(bids) || eraseFrom(asks)};
+
+      if (removed){
+        out << "ACK " << id << '\n';
+      }
+      else{
+        out << "ACK " << id << " NOT_FOUND" << '\n';
+      }
+    }
+
+  private:
+    
+    void matchBuy(Order& incoming, std::ostream& out){
+      while (incoming.quantity > 0 && !asks.empty() && asks.begin()->first <= incoming.price){
+        auto it = asks.begin();
+        auto &dq = it->second;
+
+        while (incoming.quantity > 0 && !dq.empty()){
+          Order &resting = dq.front();
+          int traded = std::min(incoming.quantity, resting.quantity);
+
+          incoming.quantity -= traded;
+          resting.quantity  -= traded;
+
+          out << "FILL " << incoming.id << ' ' << resting.id << ' ' << it->first << ' ' << traded << '\n';
+
+          if (resting.quantity == 0) dq.pop_front();
+        }
+
+        if (dq.empty()) asks.erase(it);
+      }
+
+      if (incoming.quantity > 0) bids[incoming.price].push_back(incoming);
+    }
+
+
+
+    // Match an incoming SELL order against best bids
+    void matchSell(Order& incoming, std::ostream& out) {
+        while (incoming.quantity > 0 &&
+               !bids.empty() &&
+               bids.begin()->first >= incoming.price) {
+
+            auto it = bids.begin();
+            auto& dq = it->second;
+
+            while (incoming.quantity > 0 && !dq.empty()) {
+                Order& resting = dq.front();
+                int traded = std::min(incoming.quantity, resting.quantity);
+
+                incoming.quantity -= traded;
+                resting.quantity  -= traded;
+
+                out << "FILL " << incoming.id << ' '
+                    << resting.id << ' '
+                    << it->first << ' '
+                    << traded << '\n';
+
+                if (resting.quantity == 0) {
+                    dq.pop_front();
+                }
+            }
+
+            if (dq.empty()) {
+                bids.erase(it);
+            }
+        }
+
+        if (incoming.quantity > 0) {
+            asks[incoming.price].push_back(incoming);
+        }
+    }
 };
 
-struct OrderLocation{
+static inline std::string trim(const std::string& s){
 
-  double price;
-  char side;
-  std::deque<Order>::iterator it;
-};
+  std::size_t b{0};
 
+  while(b < s.size() && std::isspace(static_cast<unsigned char>(s[b]))){
 
+    ++b;
+  }
+  std::size_t e = s.size();
 
-std::map<double, std::deque<Order>, std::greater<double>> buyBook; // price -> orders (sorted by price desc)
-std::map<double, std::deque<Order>> sellBook; // price -> orders (sorted by price asc)
-std::unordered_map<std::string, OrderLocation> orderIndex; // need O(1) access to order's location inside of order book
+  while ( e > b && std::isspace(static_cast<unsigned char>(s[e-1]))){
 
-bool cancelOrder(const std::string& id){
+    --e;
+  }
+  return s.substr(b, e-b);
+}
 
-  auto it = orderIndex.find(id);
-  if (it == orderIndex.end()){
-    std::cout << "CANCEL REJECT " << id << '\n';
+/// Take one command line, apply to engine, and produce response text.
+// Returns false if line was empty (no response).
+bool processLine (const std::string& line, MatchingEngine& engine, std::string& response){
+
+  response.clear();
+  std::string s {trim(line)};
+
+  if (s.empty()){
     return false;
   }
+  std::istringstream iss(s);
+  std::string cmd;
+  iss >> cmd;
 
-  const OrderLocation& location = it->second;
-
-  if (location.side == 'B'){
-
-    auto bookIt = buyBook.find(location.price);
-    if (bookIt != buyBook.end()){
-      bookIt->second.erase(location.it);
-      if (bookIt->second.empty()){
-        buyBook.erase(bookIt);
-      }
-    }
-
-
-  }
-  else{
-
-    auto bookIt = sellBook.find(location.price);
-    if (bookIt != sellBook.end()){
-      bookIt->second.erase(location.it);
-      if (bookIt->second.empty()){
-        sellBook.erase(bookIt);
-      }
-    }
-
-  }
-
-  orderIndex.erase(it);
-
-  std::cout<< "CANCEL_ACK " << id << '\n';
-  return true;
-}
-
-
-void processOrder(Order order){
-
-    if (order.side == 'B') { // buy side
-        while (order.quantity > 0 && !sellBook.empty() && sellBook.begin()->first <= order.price) {
-            auto& sellOrders = sellBook.begin()->second;
-            while (order.quantity > 0 && !sellOrders.empty()) {
-                Order& sellOrder = sellOrders.front();
-                int tradeQty = std::min(order.quantity, sellOrder.quantity);
-                double tradePrice = sellOrder.price;
-
-                // Record the trade
-                Trade trade{order.id, sellOrder.id, tradePrice, tradeQty, std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()};
-                std::cout << "FILL " << order.id << " " << sellOrder.id << " " << tradePrice << " " << tradeQty << std::endl;
-
-                // Update quantities
-                order.quantity -= tradeQty;
-                sellOrder.quantity -= tradeQty;
-
-                if (sellOrder.quantity == 0) {
-                    sellOrders.pop_front(); // Remove fully filled order
-                    orderIndex.erase(sellOrder.id);
-                }
-            }
-            if (sellOrders.empty()) {
-                sellBook.erase(sellBook.begin()); // Remove price level if no orders left
-            }
+      if (cmd == "SUBMIT") {
+        std::string id;
+        double price;
+        int qty;
+        char side;
+        if (!(iss >> id >> side >> price >> qty)) {
+            response = "ERR BAD_SUBMIT\n";
+            return true;
+        }
+        side = static_cast<char>(
+            std::toupper(static_cast<unsigned char>(side)));
+        if (side != 'B' && side != 'S') {
+          response = "ERR BAD_SIDE\n";
+            return true;
         }
 
-    if(order.quantity > 0){
+        Order o{id, side, price, qty};
+        std::ostringstream oss;
+        engine.submit(o, oss);
+        response = oss.str();
+        return true;
 
-      auto& dequeue = buyBook[order.price];
-      dequeue.push_back(order);
+    } else if (cmd == "CANCEL") {
+      std::string id;
+      if (!(iss >> id)) {
+        response = "ERR BAD_CANCEL\n";
+        return true;
+      }
+      std::ostringstream oss;
+      engine.cancel(id, oss);
+        response = oss.str();
+        return true;
 
-      orderIndex[order.id] ={
-        order.price,
-        'B',
-        std::prev(dequeue.end()) //gives iterator to newly inserted order
-      };
-      
-     
-
-      std::cout << "ACK " << order.id << '\n';
-
-    }
-
-    }
-    else{ //sell side
-        while (order.quantity > 0 && !buyBook.empty() && buyBook.begin()->first >= order.price) {
-            auto& buyOrders = buyBook.begin()->second;
-            while (order.quantity > 0 && !buyOrders.empty()) {
-                Order& buyOrder = buyOrders.front();
-                int tradeQty = std::min(order.quantity, buyOrder.quantity);
-                double tradePrice = buyOrder.price;
-
-                // Record the trade
-                Trade trade{buyOrder.id, order.id, tradePrice, tradeQty, std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()};
-                std::cout << "FILL " << buyOrder.id << " " << order.id << " " << tradePrice << " " << tradeQty << std::endl;
-
-                // Update quantities
-                order.quantity -= tradeQty;
-                buyOrder.quantity -= tradeQty;
-
-                if (buyOrder.quantity == 0) {
-                    buyOrders.pop_front(); // Remove fully filled order
-                    orderIndex.erase(buyOrder.id);
-          
-                }
+    } else if (cmd == "DUMP") {
+        // debug: dump current book
+        std::ostringstream oss;
+        oss << "BIDS:\n";
+        for (auto& [px, dq] : engine.bids) {
+            oss << px << ": ";
+            for (auto& o : dq) {
+                oss << o.id << "(" << o.quantity << ") ";
             }
-            if (buyOrders.empty()) {
-                buyBook.erase(buyBook.begin()); // Remove price level if no orders left
-            }
+            oss << "\n";
         }
+        oss << "ASKS:\n";
+        for (auto& [px, dq] : engine.asks) {
+            oss << px << ": ";
+            for (auto& o : dq) {
+                oss << o.id << "(" << o.quantity << ") ";
+            }
+            oss << "\n";
+        }
+        response = oss.str();
+        return true;
 
-    if (order.quantity > 0){
-
-      auto& dequeue = sellBook[order.price];
-      dequeue.push_back(order);
-
-      orderIndex[order.id] ={
-        order.price,
-        'S',
-        std::prev(dequeue.end()) //gives iterator to newly inserted order
-      };
-      
-
-      std::cout << "ACK " << order.id << '\n';
-
-
+    } else {
+        response = "ERR UNKNOWN_CMD\n";
+        return true;
     }
-
-    }
-
-
-
-
 }
-
-
 
 int main() {
+    // Create listening socket
+    int listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd < 0) {
+        std::perror("socket");
+        return 1;
+    }
 
-    std::string line;
+    int opt = 1;
+    ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR,
+                 &opt, sizeof(opt));
 
-    
-    while (std::getline(std::cin, line)) {
-        std::stringstream ss(line);
-        std::string cmd;
-        ss >> cmd;
+    sockaddr_in addr{};
+    addr.sin_family      = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port        = htons(6666); // port for generator.py
 
-        if (cmd == "SUBMIT") {
-            Order o;
-            ss >> o.id >> o.side >> o.price >> o.quantity;
-            o.timestamp = std::chrono::duration<double>(
-                std::chrono::system_clock::now().time_since_epoch()
-            ).count();
+    if (::bind(listen_fd,
+               reinterpret_cast<sockaddr*>(&addr),
+               sizeof(addr)) < 0) {
+        std::perror("bind");
+        ::close(listen_fd);
+        return 1;
+    }
 
-            processOrder(o);
+    if (::listen(listen_fd, 1) < 0) {
+        std::perror("listen");
+        ::close(listen_fd);
+        return 1;
+    }
+
+    std::cout << "Listening on port 6666...\n";
+
+    int client_fd = ::accept(listen_fd, nullptr, nullptr);
+    if (client_fd < 0) {
+        std::perror("accept");
+        ::close(listen_fd);
+        return 1;
+    }
+
+    std::cout << "Client connected.\n";
+
+    MatchingEngine engine;
+    std::string buffer;
+    buffer.reserve(4096);
+    char temp[4096];
+
+    while (true) {
+        ssize_t n = ::recv(client_fd, temp, sizeof(temp), 0);
+        if (n == 0) {
+            std::cout << "Client closed connection.\n";
+            break;
         }
-        else if (cmd == "CANCEL") {
-            std::string id;
-            ss >> id;
-            cancelOrder(id);
+        if (n < 0) {
+            std::perror("recv");
+            break;
         }
-        else if (cmd == "PRINT") {
-            // DEBUG
-            std::cout << "BUY BOOK:\n";
-            for (auto& [price, dq] : buyBook) {
-                std::cout << price << ": ";
-                for (auto& o : dq) std::cout << o.id << "(" << o.quantity << ") ";
-                std::cout << "\n";
-            }
 
-            std::cout << "\nSELL BOOK:\n";
-            for (auto& [price, dq] : sellBook) {
-                std::cout << price << ": ";
-                for (auto& o : dq) std::cout << o.id << "(" << o.quantity << ") ";
-                std::cout << "\n";
+        buffer.append(temp, static_cast<std::size_t>(n));
+
+        // Extract complete lines
+        for (;;) {
+            auto pos = buffer.find('\n');
+            if (pos == std::string::npos) break;
+
+            std::string line = buffer.substr(0, pos);
+            buffer.erase(0, pos + 1);
+
+            std::string resp;
+            if (processLine(line, engine, resp)) {
+                if (!resp.empty()) {
+                    ::send(client_fd, resp.data(),
+                           resp.size(), 0);
+                }
             }
         }
     }
 
+    ::close(client_fd);
+    ::close(listen_fd);
     return 0;
 }
 
 
-    
+
+
+
+
+
+
+
+
+
 
 
 
