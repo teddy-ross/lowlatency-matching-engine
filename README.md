@@ -183,7 +183,7 @@ Future enhancements could include:
 
 The generator script:
 
-- Connects to `127.0.0.1:6666`
+- Connects to `127.0.0.1:6767`
 - Sends a large number of `SUBMIT` commands
 - Reads and validates responses
 - Measures round-trip time (latency)
