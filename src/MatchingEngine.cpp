@@ -2,78 +2,137 @@
 
 #include <algorithm>
 #include <iostream>
+#include <type_traits>
 
-// Submit: copy the order, then match
 void MatchingEngine::submit(const Order& o, std::ostream& out) {
-    Order order{ o } ; // make a modifiable copy
-    if (order.side == 'B') {
-        matchBuy(order, out);
-
-    } else {
-        matchSell(order, out);
+    // Reject duplicate IDs
+    if (m_idIndex.find(o.id) != m_idIndex.end()) {
+        out << "ERR DUPLICATE_ID " << o.id << '\n';
+        return;
     }
-    // After matching, acknowledge the incoming order
+
+    // Work on a mutable copy
+    Order incoming = o;
+
+    if (incoming.quantity <= 0) {
+        out << "ERR BAD_QTY\n";
+        return;
+    }
+
+    if (incoming.side == Side::Buy) {
+        matchBuy(incoming, out);
+    } else {
+        matchSell(incoming, out);
+    }
+
+    // Rest leftover
+    if (incoming.quantity > 0) {
+        insertResting(incoming);
+    }
+
     out << "ACK " << o.id << '\n';
 }
 
-// Cancel: simple scan through both books, TO DO (cnt.)
 void MatchingEngine::cancel(int id, std::ostream& out) {
-    auto erase_from = [&](auto& book) {
-        for (auto it = book.begin(); it != book.end(); ++it) {
-            auto& dq = it->second;
-            for (auto qit = dq.begin(); qit != dq.end(); ++qit) {
-                if (qit->id == id) {
-                    dq.erase(qit);
-                    if (dq.empty()) {
-                        book.erase(it);
-                    }
-                    return true;
-                }
+    auto it = m_idIndex.find(id);
+
+    if (it == m_idIndex.end()) {
+        out << "ACK " << id << " NOT_FOUND\n";
+        return;
+    }
+
+    OrderLocator loc = it -> second; // copy is fine; we erase index entry after
+
+    std::visit([&](auto& L) {
+        auto& levelIt = L.levelIt;
+
+        auto& orderIt = L.orderIt;
+
+        auto& q = levelIt -> second;
+        q.erase(orderIt);
+
+        if (q.empty()) {
+            if constexpr (std::is_same_v<std::decay_t<decltype(L)>, BidLoc>) {
+                m_bids.erase(levelIt);
+            } else {
+                m_asks.erase(levelIt);
             }
         }
-        return false;
-    };
+    }, loc);
 
-    bool removed = erase_from(bids_) || erase_from(asks_);
-    if (removed) {
-        out << "ACK " << id << '\n';
-    } else {
-        out << "ACK " << id << " NOT_FOUND\n";
-    }
+    m_idIndex.erase(it);
+    out << "ACK " << id << '\n';
 }
 
-// Debug book dump
 void MatchingEngine::dump(std::ostream& out) const {
     out << "BIDS:\n";
-    for (const auto& [px, dq] : bids_) {
+
+    for (const auto& [px, q] : m_bids) {
+
         out << px << ": ";
-        for (const auto& o : dq) {
+
+        for (const auto& o : q) {
+
             out << o.id << "(" << o.quantity << ") ";
         }
         out << '\n';
     }
+
     out << "ASKS:\n";
-    for (const auto& [px, dq] : asks_) {
+
+    for (const auto& [px, q] : m_asks) {
         out << px << ": ";
-        for (const auto& o : dq) {
+
+        for (const auto& o : q) {
             out << o.id << "(" << o.quantity << ") ";
         }
         out << '\n';
     }
 }
 
-// Private helpers
+
+void MatchingEngine::insertResting(const Order& order) {
+    if (order.quantity <= 0){
+        return;
+    }
+
+    if (order.side == Side::Buy) {
+
+        auto [levelIt, _] = m_bids.try_emplace(order.price);
+
+        auto& q = levelIt->second;
+
+        q.push_back(order);
+
+        auto orderIt = std::prev(q.end());
+
+        m_idIndex.emplace(order.id, BidLoc{levelIt, orderIt});
+
+    } else {
+        auto [levelIt, _] = m_asks.try_emplace(order.price);
+
+        auto& q = levelIt->second;
+
+        q.push_back(order);
+
+        auto orderIt = std::prev(q.end());
+
+        m_idIndex.emplace(order.id, AskLoc{levelIt, orderIt});
+    }
+}
 
 void MatchingEngine::matchBuy(Order& incoming, std::ostream& out) {
-    while (incoming.quantity > 0 &&
-           !asks_.empty() &&
-           asks_.begin()->first <= incoming.price) {
+    while (incoming.quantity > 0 && !m_asks.empty() && m_asks.begin() -> first <= incoming.price) {
 
-        auto it = asks_.begin();
-        auto& dq = it->second;
+        auto levelIt = m_asks.begin();
 
-        while (incoming.quantity > 0 && !dq.empty()) {
-            Order& resting = dq.front();
+        int tradePx = levelIt -> first;
+
+        auto& q = levelIt -> second;
+
+        auto it = q.begin();
+        while (incoming.quantity > 0 && it != q.end()) {
+            Order& resting = *it;
             int traded = std::min(incoming.quantity, resting.quantity);
 
             incoming.quantity -= traded;
@@ -81,34 +140,34 @@ void MatchingEngine::matchBuy(Order& incoming, std::ostream& out) {
 
             out << "FILL " << incoming.id << ' '
                 << resting.id << ' '
-                << it->first << ' '
+                << tradePx << ' '
                 << traded << '\n';
 
             if (resting.quantity == 0) {
-                dq.pop_front();
+                // IMPORTANT: erase index BEFORE erasing iterator
+                m_idIndex.erase(resting.id);
+                it = q.erase(it);
+            } else {
+                ++it;
             }
         }
 
-        if (dq.empty()) {
-            asks_.erase(it);
+        if (q.empty()) {
+            m_asks.erase(levelIt);
         }
-    }
-
-    if (incoming.quantity > 0) {
-        bids_[incoming.price].push_back(incoming);
     }
 }
 
 void MatchingEngine::matchSell(Order& incoming, std::ostream& out) {
-    while (incoming.quantity > 0 &&
-           !bids_.empty() &&
-           bids_.begin()->first >= incoming.price) {
+    while (incoming.quantity > 0 && !m_bids.empty() && m_bids.begin()->first >= incoming.price) {
 
-        auto it {bids_.begin()};
-        auto& dq {it->second};
+        auto levelIt = m_bids.begin();
+        int tradePx = levelIt -> first;
+        auto& q = levelIt -> second;
 
-        while (incoming.quantity > 0 && !dq.empty()) {
-            Order& resting {dq.front()};
+        auto it = q.begin();
+        while (incoming.quantity > 0 && it != q.end()) {
+            Order& resting = *it;
             int traded = std::min(incoming.quantity, resting.quantity);
 
             incoming.quantity -= traded;
@@ -116,20 +175,23 @@ void MatchingEngine::matchSell(Order& incoming, std::ostream& out) {
 
             out << "FILL " << incoming.id << ' '
                 << resting.id << ' '
-                << it->first << ' '
+                << tradePx << ' '
                 << traded << '\n';
 
             if (resting.quantity == 0) {
-                dq.pop_front();
+                // IMPORTANT: erase index BEFORE erasing iterator
+                m_idIndex.erase(resting.id);
+                it = q.erase(it);
+
+            } 
+            else {
+                ++it;
             }
         }
 
-        if (dq.empty()) {
-            bids_.erase(it);
+        if (q.empty()) {
+            m_bids.erase(levelIt);
         }
     }
-
-    if (incoming.quantity > 0) {
-        asks_[incoming.price].push_back(incoming);
-    }
 }
+ 

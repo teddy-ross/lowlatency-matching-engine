@@ -5,8 +5,21 @@ import sys
 import random
 
 HOST = "127.0.0.1"
-PORT = 6666
+PORT = 6767
 N = 200000
+
+def recv_line(sock, buf):
+    """Read one newline-terminated line; return (line_str, buf)."""
+    while b"\n" not in buf:
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise ConnectionError("server closed connection")
+        buf += chunk
+    j = buf.find(b"\n")
+    line = buf[:j].decode(errors="ignore").rstrip("\n")
+    buf = buf[j + 1 :]
+    return line, buf
+
 
 if len(sys.argv) > 1:
     N = int(sys.argv[1])
@@ -27,24 +40,20 @@ for i in range(1, N + 1):
     send_t = time.time()
     s.sendall(line)
 
-    # Very simple: read until we see at least one newline in response
-    while b"\n" not in buf:
+    # Drain all lines for this request until we see ACK
+    while True:
         try:
-            chunk = s.recv(4096)
+            resp, buf = recv_line(s, buf)
         except socket.timeout:
             print("timeout waiting for response")
             s.close()
             sys.exit(1)
-        if not chunk:
-            print("server closed connection")
-            s.close()
-            sys.exit(1)
-        buf += chunk
 
-    # take one line (you might get more than one in buf)
-    line_end = buf.find(b"\n")
-    resp = buf[:line_end].decode(errors="ignore")
-    buf = buf[line_end + 1 :]
+        # ignore FILL lines, stops when we see the ACK for this id
+        if resp.startswith("ACK "):
+            parts = resp.split()
+            if len(parts) >= 2 and parts[1].isdigit() and int(parts[1]) == i:
+                break
 
     recv_t = time.time()
     rtt_us = (recv_t - send_t) * 1e6
@@ -55,3 +64,7 @@ for i in range(1, N + 1):
 end = time.time()
 print(f"done {N} orders in {end - start:.2f}s")
 s.close()
+
+
+
+
