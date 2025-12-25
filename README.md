@@ -1,6 +1,6 @@
 # Market Data Handler / Low-Latency Matching Engine (C++20)
 
-This project is an evolving **low-latency matching engine** and **market data handler prototype**, written in **C++20**.
+This project is an evolving **low-latency matching engine** and **market data handler prototype**, written in **C++20**. It is a work in progress, with many features and optimizations to be made.
 ---
 
 ## Project Structure
