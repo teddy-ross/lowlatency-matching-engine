@@ -13,7 +13,7 @@ struct Order {
     int quantity;
 };
 
-// Trade event (you can extend this with timestamp etc.)
+// Trade event 
 struct Trade {
     int takerId;
     int makerId;
