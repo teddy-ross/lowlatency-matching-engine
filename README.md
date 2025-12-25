@@ -164,7 +164,7 @@ Later, this can be swapped out for:
 
 Responsibilities:
 
-- Open a listening socket on port `6666`
+- Open a listening socket on port `6767`
 - Accept a single client connection (for now)
 - Buffer incoming bytes and split on newline boundaries
 - Pass each complete line to `process_line(...)`
