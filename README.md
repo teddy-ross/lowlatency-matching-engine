@@ -68,7 +68,7 @@ Start the server:
 Expected output:
 
 ```text
-Listening on port 6666...
+Listening on port 6767...
 ```
 
 You may now connect via:
@@ -82,7 +82,7 @@ python3 generator.py 50000
 ### B. Interactive testing via netcat
 
 ```bash
-nc 127.0.0.1 6666
+nc 127.0.0.1 6767
 ```
 
 ---
@@ -197,7 +197,6 @@ This acts as both a **load tester** and a **functional integration test** for th
 
 Planned and potential future improvements:
 
-- **Order ID index** for O(1) cancels (ID → iterator/pointer mapping)
 - **Market data normalization layer** producing `MarketUpdate` structs
 - **File-based replay mode** for deterministic backtesting
 - **Binary wire protocol** with fixed-size message headers
