@@ -29,7 +29,7 @@ marketDataHandlerLL/
 
 ## Build Requirements
 
-- **C++20 compiler**
+- **C++20 compiler, we used Clang**
 - **CMake 3.13+**
 - **Linux/macOS** (uses POSIX sockets)
 - Optional: Python 3 (for stress testing)
