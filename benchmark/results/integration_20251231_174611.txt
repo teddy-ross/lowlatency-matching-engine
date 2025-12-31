@@ -1,0 +1,6 @@
+sent 10000, last RTT ≈ 17.9 µs, elapsed 0.21s
+sent 20000, last RTT ≈ 17.9 µs, elapsed 0.39s
+sent 30000, last RTT ≈ 16.9 µs, elapsed 0.58s
+sent 40000, last RTT ≈ 17.9 µs, elapsed 0.77s
+sent 50000, last RTT ≈ 15.0 µs, elapsed 0.96s
+done 50000 orders in 0.96s

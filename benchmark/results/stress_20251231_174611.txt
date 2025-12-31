@@ -1,0 +1,73 @@
+Order Book Stress Testing
+=========================
+
+=== Memory Stress Test ===
+Creating 100000 resting orders...
+  Created 10000 orders...
+  Created 20000 orders...
+  Created 30000 orders...
+  Created 40000 orders...
+  Created 50000 orders...
+  Created 60000 orders...
+  Created 70000 orders...
+  Created 80000 orders...
+  Created 90000 orders...
+Created 100000 orders in 0.014s
+Rate: 7.14286e+06 orders/sec
+
+Canceling all orders...
+  Canceled 10000 orders...
+  Canceled 20000 orders...
+  Canceled 30000 orders...
+  Canceled 40000 orders...
+  Canceled 50000 orders...
+  Canceled 60000 orders...
+  Canceled 70000 orders...
+  Canceled 80000 orders...
+  Canceled 90000 orders...
+Canceled 100000 orders in 0.012s
+Rate: 8.33333e+06 cancels/sec
+
+=== High Throughput Test ===
+Running for 10 seconds...
+  100000 ops (2.27273e+06 ops/sec)
+  200000 ops (1.66667e+06 ops/sec)
+  300000 ops (1.28755e+06 ops/sec)
+  400000 ops (1.04712e+06 ops/sec)
+  500000 ops (877193 ops/sec)
+  600000 ops (757576 ops/sec)
+  700000 ops (663507 ops/sec)
+  800000 ops (591716 ops/sec)
+  900000 ops (531601 ops/sec)
+  1000000 ops (482859 ops/sec)
+  1100000 ops (442122 ops/sec)
+  1200000 ops (407886 ops/sec)
+  1300000 ops (379451 ops/sec)
+  1400000 ops (354970 ops/sec)
+  1500000 ops (332373 ops/sec)
+  1600000 ops (312195 ops/sec)
+  1700000 ops (294678 ops/sec)
+  1800000 ops (278681 ops/sec)
+  1900000 ops (264403 ops/sec)
+  2000000 ops (252016 ops/sec)
+  2100000 ops (240909 ops/sec)
+  2200000 ops (230463 ops/sec)
+
+Results:
+  Total operations: 2252939
+  Submits: 1802359
+  Cancels: 450580
+  Throughput: 225294 ops/sec
+  Remaining orders: 1351779
+
+=== Deep Book Test ===
+Building book with 50 levels, 100 orders per level
+Book built in 0.001s
+Total resting orders: 10000
+
+Testing cross-book aggressive orders...
+Average latency for aggressive order: 13497.5 ns
+P99 latency: 60750 ns
+
+=========================
+All stress tests complete!

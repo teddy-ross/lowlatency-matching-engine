@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ENABLE_NATIVE "Enable -march=native optimizations" ON)
+option(BUILD_BENCHMARKS "Build benchmark suite" OFF)
 
 add_executable(marketDataHandlerLL
     src/main.cpp
@@ -23,4 +24,10 @@ target_compile_options(marketDataHandlerLL PRIVATE
 
 if (ENABLE_NATIVE)
   target_compile_options(marketDataHandlerLL PRIVATE -march=native)
+endif()
+
+# Benchmark suite (optional)
+if(BUILD_BENCHMARKS)
+    message(STATUS "Building benchmarks")
+    add_subdirectory(benchmark)
 endif()

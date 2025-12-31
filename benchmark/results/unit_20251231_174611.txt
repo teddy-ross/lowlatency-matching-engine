@@ -1,0 +1,39 @@
+Starting Order Book Benchmarks...
+====================================
+
+Warming up...
+
+=== Submit Only ===
+Total operations:  100000
+Throughput:        1749230.34 ops/sec
+Average latency:   536.79 ns
+P50 latency:       292.00 ns
+P95 latency:       1500.00 ns
+P99 latency:       2209.00 ns
+
+=== Mixed Workload (70/30) ===
+Total operations:  100000
+Throughput:        2458814.85 ops/sec
+Average latency:   391.34 ns
+P50 latency:       292.00 ns
+P95 latency:       1000.00 ns
+P99 latency:       1500.00 ns
+
+=== Cancel Only ===
+Total operations:  100000
+Throughput:        11414222.12 ops/sec
+Average latency:   74.03 ns
+P50 latency:       83.00 ns
+P95 latency:       125.00 ns
+P99 latency:       125.00 ns
+
+=== Worst Case (Deep Book Cross) ===
+Total operations:  5000
+Throughput:        3039513.68 ops/sec
+Average latency:   315.49 ns
+P50 latency:       83.00 ns
+P95 latency:       84.00 ns
+P99 latency:       125.00 ns
+
+====================================
+Benchmarks complete!
