@@ -6,7 +6,7 @@ This project is an evolving **low-latency matching engine** and **market data ha
 
 ## Build Requirements
 
-- **C++20 compiler, we used Clang**
+- **C++20 compatible compiler**
 - **CMake 3.13+**
 - **Unix/Linux System** 
 - **Python 3.13.5** 
