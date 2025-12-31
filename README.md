@@ -1,6 +1,6 @@
 # Market Data Handler / Low-Latency Matching Engine (C++20)
 
-This project is an evolving **low-latency matching engine** and **market data handler prototype**, written in **C++20**. It is a work in progress, with many features and optimizations to be made.
+This project is an evolving **low-latency matching engine** and **market data handler prototype**, written in **C++20**. It is a work in progress, with many features and optimizations to be made. I'm building this to learn more about low-latency programming in C++.
 
 ---
 
@@ -8,8 +8,8 @@ This project is an evolving **low-latency matching engine** and **market data ha
 
 - **C++20 compiler, we used Clang**
 - **CMake 3.13+**
-- **Linux/macOS** (uses POSIX sockets)
-- Optional: Python 3.13.5 (for stress testing)
+- **Unix/Linux System** 
+- **Python 3.13.5** 
 
 ---
 
