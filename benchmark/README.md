@@ -58,7 +58,7 @@ These benchmarks test the matching engine in isolation without network overhead:
 
 These tests exercise the complete system including network, protocol parsing, and matching:
 
-- **generator.py**: Your existing network RTT measurement tool
+- **generator.py**: 
   - Sends orders over TCP to running server
   - Measures round-trip time (RTT)
   - Tests realistic client-server interaction
@@ -321,7 +321,7 @@ cd benchmark
 ./benchmark_suite > current.txt
 python3 tools/results_analyzer.py baseline.txt current.txt
 
-# Check for regressions (add to your CI script)
+# Check for regressions 
 if grep -q "REGRESSION" results.txt; then
     echo "Performance regression detected!"
     exit 1
