@@ -1,29 +1,6 @@
 # Market Data Handler / Low-Latency Matching Engine (C++20)
 
 This project is an evolving **low-latency matching engine** and **market data handler prototype**, written in **C++20**. It is a work in progress, with many features and optimizations to be made.
----
-
-## Project Structure
-
-```text
-marketDataHandlerLL/
-│
-├── CMakeLists.txt
-│
-├── include/
-│   ├── MatchingEngine.hpp      # Matching engine interface + Order struct
-│   └── Protocol.hpp            # Line-based text protocol parser
-│
-├── src/
-│   ├── MatchingEngine.cpp      # Order book + matching logic
-│   ├── Protocol.cpp            # Command parsing (SUBMIT, CANCEL, DUMP)
-│   └── main.cpp                # TCP server + integration layer
-│
-├── bench/
-│   └── generator.py            # Python load tester
-│
-└── README.md                   # Project documentation
-```
 
 ---
 
