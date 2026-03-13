@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <ranges>
 #include <type_traits>
 
 void MatchingEngine::submit(const Order& o, std::ostream& out) {
@@ -68,13 +69,11 @@ void MatchingEngine::dump(std::ostream& out) const {
     out << "BIDS:\n";
 
     for (const auto& [px, q] : m_bids) {
-
         out << px << ": ";
-
-        for (const auto& o : q) {
-
-            out << o.id << "(" << o.quantity << ") ";
-        }
+        
+        std::ranges::for_each(q, [&](const Order& o) {
+            out << o.id << '(' << o.quantity << ") ";
+        });
         out << '\n';
     }
 
@@ -82,10 +81,9 @@ void MatchingEngine::dump(std::ostream& out) const {
 
     for (const auto& [px, q] : m_asks) {
         out << px << ": ";
-
-        for (const auto& o : q) {
-            out << o.id << "(" << o.quantity << ") ";
-        }
+        std::ranges::for_each(q, [&](const Order& o) {
+            out << o.id << '(' << o.quantity << ") ";
+        });
         out << '\n';
     }
 }
@@ -133,7 +131,7 @@ void MatchingEngine::matchBuy(Order& incoming, std::ostream& out) {
         auto it = q.begin();
         while (incoming.quantity > 0 && it != q.end()) {
             Order& resting = *it;
-            int traded = std::min(incoming.quantity, resting.quantity);
+            int traded = std::ranges::min(incoming.quantity, resting.quantity);  // C++20
 
             incoming.quantity -= traded;
             resting.quantity  -= traded;
@@ -168,7 +166,7 @@ void MatchingEngine::matchSell(Order& incoming, std::ostream& out) {
         auto it = q.begin();
         while (incoming.quantity > 0 && it != q.end()) {
             Order& resting = *it;
-            int traded = std::min(incoming.quantity, resting.quantity);
+            int traded = std::ranges::min(incoming.quantity, resting.quantity);  // C++20
 
             incoming.quantity -= traded;
             resting.quantity  -= traded;

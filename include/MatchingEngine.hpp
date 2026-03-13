@@ -2,26 +2,42 @@
 #define MATCHING_ENGINE_HPP
 #pragma once
 
+#include <compare>
+#include <concepts>
 #include <functional>
-#include <map>
-#include <iosfwd>  // for std::ostream
+#include <iosfwd>
 #include <list>
+#include <map>
+#include <ranges>
+#include <span>
+#include <string_view>
 #include <unordered_map>
 #include <variant>
 
 
-enum class Side{
-    Buy,
-    Sell
-};
+enum class Side { Buy, Sell };
+
+
+[[nodiscard]] consteval std::string_view side_label(Side s) noexcept {
+    return s == Side::Buy ? "BUY" : "SELL";
+}
+static_assert(side_label(Side::Buy)  == "BUY",  "side_label: Buy  label mismatch");
+static_assert(side_label(Side::Sell) == "SELL", "side_label: Sell label mismatch");
 
 struct Order {
     int id;
-    Side side;    
+    Side side;
     int price;
     int quantity;
+
+    
+    [[nodiscard]] auto operator<=>(const Order&) const = default;
 };
 
+
+template <typename R>
+concept OrderRange = std::ranges::input_range<R> &&
+                     std::same_as<std::ranges::range_value_t<R>, Order>;
 
 class MatchingEngine {
 
@@ -41,6 +57,14 @@ public:
      * @return void
      */
     void submit(const Order& order, std::ostream& out);
+
+    // C++20: constrained template accepting any OrderRange (span, vector, array, …)
+    template <OrderRange R>
+    void submitBatch(R&& orders, std::ostream& out) {
+        for (const Order& o : orders) {
+            submit(o, out);
+        }
+    }
 
     /**
      * Cancel an existing order by id.

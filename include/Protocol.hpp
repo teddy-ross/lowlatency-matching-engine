@@ -4,6 +4,7 @@
 
 
 #include <string>
+#include <string_view>
 
 class MatchingEngine;
 
@@ -27,6 +28,7 @@ class MatchingEngine;
  * @return `true` if a response (possibly empty) should be sent back to
  *         the client; `false` if the input was empty/no-op.
  */
-bool process_line(const std::string& line, MatchingEngine& engine, std::string& response);
+
+[[nodiscard]] bool process_line(std::string_view line, MatchingEngine& engine, std::string& response);
 
 #endif

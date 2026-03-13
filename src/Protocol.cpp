@@ -4,9 +4,9 @@
 #include <cctype>
 #include <sstream>
 #include <string>
+#include <string_view>
 
-// Removes leading and trailing whitespace.
-static inline std::string trim(const std::string& s) {
+static std::string_view trim(std::string_view s) noexcept {
     std::size_t b = 0;
     while (b < s.size() && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
     std::size_t e = s.size();
@@ -14,12 +14,12 @@ static inline std::string trim(const std::string& s) {
     return s.substr(b, e - b);
 }
 
-bool process_line(const std::string& line, MatchingEngine& engine, std::string& response) {
+bool process_line(std::string_view line, MatchingEngine& engine, std::string& response) {
     response.clear();
-    std::string s { trim(line) };
+    std::string_view s { trim(line) };
     if (s.empty()) return false;
 
-    std::istringstream iss(s);
+    std::istringstream iss{std::string(s)};
     std::string cmd;
     iss >> cmd;
 
@@ -32,9 +32,10 @@ bool process_line(const std::string& line, MatchingEngine& engine, std::string& 
         }
 
         sideChar = static_cast<char>(std::toupper(static_cast<unsigned char>(sideChar)));
+        using enum Side;  // bring Buy and Sell into scope unqualified
         Side side;
-        if (sideChar == 'B') side = Side::Buy;
-        else if (sideChar == 'S') side = Side::Sell;
+        if (sideChar == 'B') side = Buy;
+        else if (sideChar == 'S') side = Sell;
         else {
             response = "ERR BAD_SIDE\n";
             return true;
