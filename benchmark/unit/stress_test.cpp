@@ -1,13 +1,17 @@
 #include "MatchingEngine.hpp"
-#include <iostream>
-#include <random>
-#include <sstream>
+
+#include <algorithm>
 #include <chrono>
-#include <vector>
-#include <thread>
 #include <iomanip>
+#include <iostream>
+#include <numeric>
+#include <random>
+#include <vector>
 
 using namespace std::chrono;
+
+// Stress tests use NullSink throughout: they measure sustained engine
+// throughput and memory behavior, not message formatting.
 
 class StressTest {
 public:
@@ -18,41 +22,39 @@ public:
         std::cout << "Creating " << num_orders << " resting orders..." << std::endl;
 
         MatchingEngine engine;
-        std::ostringstream out;
-        
-        auto start = high_resolution_clock::now();
+        NullSink drop;
+
+        auto start = steady_clock::now();
 
         // Fill book with non-matching orders
         for (int i = 0; i < num_orders; ++i) {
-            Side side = (i % 2 == 0) ? Side::Buy : Side::Sell;
-            int price = (side == Side::Buy) ? 50 : 150;
-            Order o{i, side, price, 100};
-            engine.submit(o, out);
+            const Side side = (i % 2 == 0) ? Side::Buy : Side::Sell;
+            const int price = (side == Side::Buy) ? 50 : 150;
+            engine.submit(Order{.id = i, .side = side, .price = price, .quantity = 100}, drop);
 
             if (i % 10000 == 0 && i > 0) {
                 std::cout << "  Created " << i << " orders..." << std::endl;
             }
         }
 
-        auto end = high_resolution_clock::now();
+        auto end = steady_clock::now();
         double elapsed = duration_cast<milliseconds>(end - start).count() / 1000.0;
 
         std::cout << "Created " << num_orders << " orders in " << elapsed << "s" << std::endl;
         std::cout << "Rate: " << (num_orders / elapsed) << " orders/sec" << std::endl;
 
-        // Now cancel them all
         std::cout << "\nCanceling all orders..." << std::endl;
-        start = high_resolution_clock::now();
+        start = steady_clock::now();
 
         for (int i = 0; i < num_orders; ++i) {
-            engine.cancel(i, out);
+            engine.cancel(i, drop);
 
             if (i % 10000 == 0 && i > 0) {
                 std::cout << "  Canceled " << i << " orders..." << std::endl;
             }
         }
 
-        end = high_resolution_clock::now();
+        end = steady_clock::now();
         elapsed = duration_cast<milliseconds>(end - start).count() / 1000.0;
 
         std::cout << "Canceled " << num_orders << " orders in " << elapsed << "s" << std::endl;
@@ -64,43 +66,39 @@ public:
         std::cout << "Running for " << duration_seconds << " seconds..." << std::endl;
 
         MatchingEngine engine;
-        std::ostringstream out;
-        
-        auto start = high_resolution_clock::now();
-        auto end_time = start + seconds(duration_seconds);
-        
+        NullSink drop;
+
+        const auto start = steady_clock::now();
+        const auto end_time = start + seconds(duration_seconds);
+
         int order_id = 0;
         std::vector<int> active_orders;
-        int total_ops = 0;
-        int submits = 0;
-        int cancels = 0;
+        long long total_ops = 0;
+        long long submits = 0;
+        long long cancels = 0;
 
-        while (high_resolution_clock::now() < end_time) {
-            // Random operation
+        while (steady_clock::now() < end_time) {
             if (dist(gen) < 0.8 || active_orders.empty()) {
-                // Submit
-                Order o = generateRandomOrder(order_id++);
-                engine.submit(o, out);
+                engine.submit(generateRandomOrder(order_id++), drop);
                 active_orders.push_back(order_id - 1);
                 submits++;
             } else {
-                // Cancel
-                size_t idx = gen() % active_orders.size();
-                engine.cancel(active_orders[idx], out);
+                const size_t idx = gen() % active_orders.size();
+                engine.cancel(active_orders[idx], drop);
                 active_orders.erase(active_orders.begin() + idx);
                 cancels++;
             }
             total_ops++;
 
-            if (total_ops % 100000 == 0) {
-                auto now = high_resolution_clock::now();
-                double elapsed = duration_cast<milliseconds>(now - start).count() / 1000.0;
+            if (total_ops % 1000000 == 0) {
+                const auto now = steady_clock::now();
+                const double elapsed = duration_cast<milliseconds>(now - start).count() / 1000.0;
                 std::cout << "  " << total_ops << " ops (" << (total_ops / elapsed) << " ops/sec)" << std::endl;
             }
         }
 
-        auto end = high_resolution_clock::now();
-        double elapsed = duration_cast<milliseconds>(end - start).count() / 1000.0;
+        const auto end = steady_clock::now();
+        const double elapsed = duration_cast<milliseconds>(end - start).count() / 1000.0;
 
         std::cout << "\nResults:" << std::endl;
         std::cout << "  Total operations: " << total_ops << std::endl;
@@ -112,55 +110,50 @@ public:
 
     void runDeepBookTest(int depth_per_level, int num_levels) {
         std::cout << "\n=== Deep Book Test ===" << std::endl;
-        std::cout << "Building book with " << num_levels << " levels, " 
+        std::cout << "Building book with " << num_levels << " levels, "
                   << depth_per_level << " orders per level" << std::endl;
 
         MatchingEngine engine;
-        std::ostringstream out;
-        
+        NullSink drop;
+
         int order_id = 0;
 
-        // Build deep bids
-        auto start = high_resolution_clock::now();
+        const auto start = steady_clock::now();
         for (int level = 0; level < num_levels; ++level) {
-            int price = 100 - level;
+            const int price = 100 - level;
             for (int i = 0; i < depth_per_level; ++i) {
-                Order o{order_id++, Side::Buy, price, 10};
-                engine.submit(o, out);
+                engine.submit(Order{.id = order_id++, .side = Side::Buy, .price = price, .quantity = 10}, drop);
             }
         }
 
-        // Build deep asks
         for (int level = 0; level < num_levels; ++level) {
-            int price = 101 + level;
+            const int price = 101 + level;
             for (int i = 0; i < depth_per_level; ++i) {
-                Order o{order_id++, Side::Sell, price, 10};
-                engine.submit(o, out);
+                engine.submit(Order{.id = order_id++, .side = Side::Sell, .price = price, .quantity = 10}, drop);
             }
         }
 
-        auto build_end = high_resolution_clock::now();
-        double build_time = duration_cast<milliseconds>(build_end - start).count() / 1000.0;
+        const auto build_end = steady_clock::now();
+        const double build_time = duration_cast<milliseconds>(build_end - start).count() / 1000.0;
 
         std::cout << "Book built in " << build_time << "s" << std::endl;
         std::cout << "Total resting orders: " << (num_levels * depth_per_level * 2) << std::endl;
 
-        // Now submit aggressive orders that cross the book
         std::cout << "\nTesting cross-book aggressive orders..." << std::endl;
-        
+
         std::vector<long long> latencies;
         for (int i = 0; i < 100; ++i) {
-            Order o{order_id++, Side::Buy, 200, 1000};
-            
-            auto t1 = high_resolution_clock::now();
-            engine.submit(o, out);
-            auto t2 = high_resolution_clock::now();
-            
+            const Order o{.id = order_id++, .side = Side::Buy, .price = 200, .quantity = 1000};
+
+            const auto t1 = steady_clock::now();
+            engine.submit(o, drop);
+            const auto t2 = steady_clock::now();
+
             latencies.push_back(duration_cast<nanoseconds>(t2 - t1).count());
         }
 
-        std::sort(latencies.begin(), latencies.end());
-        double avg = std::accumulate(latencies.begin(), latencies.end(), 0.0) / latencies.size();
+        std::ranges::sort(latencies);
+        const double avg = std::accumulate(latencies.begin(), latencies.end(), 0.0) / latencies.size();
 
         std::cout << "Average latency for aggressive order: " << avg << " ns" << std::endl;
         std::cout << "P99 latency: " << latencies[99] << " ns" << std::endl;
@@ -171,10 +164,10 @@ private:
     std::uniform_real_distribution<> dist{0.0, 1.0};
 
     Order generateRandomOrder(int id) {
-        Side side = (dist(gen) < 0.5) ? Side::Buy : Side::Sell;
-        int price = 95 + (gen() % 11);
-        int qty = 1 + (gen() % 10);
-        return Order{id, side, price, qty};
+        const Side side = (dist(gen) < 0.5) ? Side::Buy : Side::Sell;
+        const int price = 95 + static_cast<int>(gen() % 11);
+        const int qty   = 1 + static_cast<int>(gen() % 10);
+        return Order{.id = id, .side = side, .price = price, .quantity = qty};
     }
 };
 
@@ -184,13 +177,8 @@ int main() {
     std::cout << "Order Book Stress Testing" << std::endl;
     std::cout << "=========================" << std::endl;
 
-    // Test 1: Memory stress with many resting orders
     test.runMemoryStressTest(100000);
-
-    // Test 2: High throughput sustained load
     test.runHighThroughputTest(10);
-
-    // Test 3: Deep book with many price levels
     test.runDeepBookTest(100, 50);
 
     std::cout << "\n=========================" << std::endl;
