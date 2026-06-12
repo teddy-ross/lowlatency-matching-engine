@@ -33,9 +33,19 @@ target_link_libraries(marketDataHandlerLL PRIVATE engine_core)
 
 if(BUILD_TESTS)
     enable_testing()
+
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(googletest)
+    include(GoogleTest)
+
     add_executable(engine_tests tests/engine_tests.cpp)
-    target_link_libraries(engine_tests PRIVATE engine_core)
-    add_test(NAME engine_tests COMMAND engine_tests)
+    target_link_libraries(engine_tests PRIVATE engine_core GTest::gtest_main)
+    gtest_discover_tests(engine_tests)
 endif()
 
 if(BUILD_BENCHMARKS)
