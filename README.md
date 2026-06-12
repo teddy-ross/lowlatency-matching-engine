@@ -1,5 +1,7 @@
 # Low-Latency Matching Engine (C++23)
 
+[![CI](https://github.com/teddy-ross/lowlatency-matching-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/teddy-ross/lowlatency-matching-engine/actions/workflows/ci.yml)
+
 A **low-latency limit order book and matching engine** with a text protocol and TCP front end, written in **modern C++23**. I'm building this to learn (and demonstrate) low-latency programming in C++.
 
 The core design:
